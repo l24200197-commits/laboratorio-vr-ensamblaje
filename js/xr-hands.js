@@ -7,11 +7,12 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { LAB } from './config.js';
 import { pickHit } from './lab.js';
 
-export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton }) {
+export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton, world = {} }) {
   const factory = new XRHandModelFactory();
   const raycaster = new THREE.Raycaster();
   const rotation = new THREE.Matrix4();
   const trailPoint = new THREE.Vector3();
+  const tipPoint = new THREE.Vector3();
 
   const sources = [0, 1].map((index) => {
     const controller = renderer.xr.getController(index); // espacio del rayo de apuntado
@@ -70,7 +71,9 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     rotation.identity().extractRotation(s.controller.matrixWorld);
     raycaster.ray.origin.setFromMatrixPosition(s.controller.matrixWorld);
     raycaster.ray.direction.set(0, 0, -1).applyMatrix4(rotation);
-    return pickHit(raycaster.intersectObjects(lab.selectables(), false));
+    const hit = pickHit(raycaster.intersectObjects(lab.selectables(), false));
+    if (hit || !world.door) return hit;
+    return raycaster.intersectObjects(world.door.meshes, false)[0] ?? null; // la puerta, si no hay nada del laboratorio
   }
 
   function onSelectStart(s) {
@@ -79,6 +82,7 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     if (!hit) return;
     const data = hit.object.userData;
     if (data.kind === 'button') { onButton(data.action); return; }
+    if (data.kind === 'door') { world.door?.toggle(); return; }
     if (data.kind === 'piece' && lab.grab(data.id, s.key)) {
       s.controller.attach(hit.object); // conserva el offset de agarre
       s.heldId = data.id;
@@ -115,10 +119,21 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     return [(b.x - a.x) / dt, (b.y - a.y) / dt, (b.z - a.z) / dt];
   }
 
+  /** Punta del dedo índice (manos) o posición del control: lo que "toca" la puerta. */
+  function touchPoint(s) {
+    if (s.isHand) {
+      const tip = s.hand.joints?.['index-finger-tip'];
+      return tip?.visible ? tip.getWorldPosition(tipPoint) : null;
+    }
+    return s.controller.getWorldPosition(tipPoint);
+  }
+
   /** Se llama cada frame mientras la sesión XR está activa. */
   function update() {
+    const now = performance.now();
     for (const s of sources) {
       s.ray.visible = s.connected;
+      world.door?.touch(s.key, s.connected ? touchPoint(s) : null, now);
       if (!s.connected) continue;
       if (s.heldId) {
         s.ray.scale.z = 0.15;

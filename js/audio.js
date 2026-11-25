@@ -29,4 +29,5 @@ export const sounds = {
   error() { tone(200, 0.2, { type: 'triangle', gain: 0.07 }); },
   finish() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, { delay: i * 0.13 })); },
   click() { tone(1200, 0.05, { gain: 0.05 }); },
+  door(open) { tone(open ? 140 : 110, 0.18, { type: 'triangle', gain: 0.09 }); tone(open ? 210 : 90, 0.12, { type: 'triangle', gain: 0.05, delay: 0.08 }); },
 };

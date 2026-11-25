@@ -7,7 +7,7 @@ import { LAB, BOX } from './config.js';
 // Altura a la que se lleva la pieza con el ratón: por encima del borde de las cajas.
 const CARRY_Y = LAB.tableTopY + BOX.height + 0.12;
 
-export function createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton }) {
+export function createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton, world = {} }) {
   const el = renderer.domElement;
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -22,11 +22,13 @@ export function createDesktopPointer({ renderer, camera, controls, labGroup, lab
     raycaster.setFromCamera(ndc, camera);
   }
 
+  const doorHit = () => (world.door ? raycaster.intersectObjects(world.door.meshes, false)[0] ?? null : null);
+
   function onDown(evt) {
     if (renderer.xr.isPresenting || evt.button !== 0) return;
     setRay(evt);
     const hit = pickHit(raycaster.intersectObjects(lab.selectables(), false));
-    if (!hit) return;
+    if (!hit) { if (doorHit()) world.door.toggle(); return; }
     const data = hit.object.userData;
     if (data.kind === 'button') { onButton(data.action); return; }
     if (data.kind === 'piece' && lab.grab(data.id, 'mouse')) {
@@ -53,7 +55,7 @@ export function createDesktopPointer({ renderer, camera, controls, labGroup, lab
     const kind = hit?.object.userData.kind;
     lab.setHover('mouse', kind === 'piece' ? hit.object.userData.id : null);
     hud.setHover('mouse', kind === 'button' ? hit.object.userData.action : null);
-    el.style.cursor = hit ? 'pointer' : 'grab';
+    el.style.cursor = hit || doorHit() ? 'pointer' : 'grab';
   }
 
   function onUp() {

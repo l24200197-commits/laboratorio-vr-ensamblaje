@@ -1,13 +1,15 @@
 // Punto de entrada: inicializa renderer, escena, estado, entradas y sesión WebXR.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PIECES, SALON, CLASSROOM, LAB } from './config.js';
+import { PIECES, SALON, CLASSROOM, LAB, TEACHER, DOOR } from './config.js';
 import { createStore } from './state.js';
 import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js';
 import { createHud } from './hud.js';
 import { createLabController } from './lab.js';
 import { createPhysics } from './physics.js';
 import { buildClassroom } from './classroom.js';
+import { buildTeacherArea } from './teacher.js';
+import { setupDoor } from './door.js';
 import { createXRHands } from './xr-hands.js';
 import { createDesktopPointer } from './desktop-pointer.js';
 import { createPageUI, detectXR } from './page-ui.js';
@@ -65,8 +67,10 @@ async function init() {
     else if (action === 'exit') exitVR();
   };
 
-  const xrHands = createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton });
-  createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton });
+  // Elementos interactivos del salón que se agregan al cargar el GLB (la puerta).
+  const world = { door: null, teacher: null };
+  const xrHands = createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton, world });
+  createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton, world });
 
   // --- Sesión WebXR -------------------------------------------------------
   let currentSession = null;
@@ -126,18 +130,24 @@ async function init() {
   resize();
 
   // setAnimationLoop es obligatorio en WebXR (usa requestAnimationFrame de la sesión).
+  const viewer = new THREE.Vector3();
+  let last = performance.now();
   renderer.setAnimationLoop(() => {
     const now = performance.now();
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
     if (renderer.xr.isPresenting) xrHands.update();
     else controls.update();
     lab.tick(now);
+    world.door?.update(dt);
+    world.teacher?.update(now, camera.getWorldPosition(viewer));
     renderer.render(scene, camera);
   });
 
   // El spinner sigue visible hasta que el salón cargue (o falle y se use el respaldo).
   let classroom = null;
   try {
-    const { bounds } = await loadSalon(scene, SALON);
+    const { root, bounds } = await loadSalon(scene, SALON);
     const m = CLASSROOM.roomMargin; // muros invisibles: las piezas no salen del salón
     physics.setBounds({ min: [bounds.min.x + m, bounds.min.z + m], max: [bounds.max.x - m, bounds.max.z - m] });
     if (CLASSROOM.enabled) {
@@ -145,6 +155,12 @@ async function init() {
       scene.add(classroom.group);
       physics.add(...classroom.solids);
     }
+    if (TEACHER.enabled) {
+      world.teacher = buildTeacherArea(TEACHER);
+      scene.add(world.teacher.group);
+      physics.add(...world.teacher.solids);
+    }
+    if (DOOR.enabled) world.door = setupDoor(root, DOOR, { onToggle: (open) => sounds.door(open) });
   } catch (err) {
     console.warn('Salón no disponible, se usa el entorno de respaldo:', err);
     buildGenericEnvironment(scene);
@@ -154,7 +170,7 @@ async function init() {
 
   // Herramientas de inspección para pruebas: solo con ?debug en la URL.
   if (new URLSearchParams(location.search).has('debug')) {
-    window.__lab = { THREE, scene, camera, renderer, controls, store, pieces, targets, lab, hud, physics, classroom };
+    window.__lab = { THREE, scene, camera, renderer, controls, store, pieces, targets, lab, hud, physics, classroom, world };
   }
 
   const xr = await detectXR();

@@ -53,6 +53,8 @@ El navegador no sabe qué es `import 'three'` (especificador "desnudo"). El impo
 | `js/state.js` | **Estado central único** (estados de piezas, fase, mensaje, cronómetro, sesión XR). El progreso se *deriva* contando piezas `colocada` → no puede duplicarse |
 | `js/rules.js` | Regla de validación pura (¿en qué caja quedó la pieza? ¿es la suya?) |
 | `js/physics.js` | Gravedad, rebote y colisión con mesa/cajas/pupitres/piso (sin dependencias; probada en Node) |
+| `js/teacher.js` | Zona del profesor: tarima, escritorio de madera, silla y profesor sentado (respira y voltea a ver al usuario) |
+| `js/door.js` | Puerta interactiva: separa la hoja del marco en el GLB y la gira sobre su bisagra |
 | `js/classroom.js` | Pupitres azules y sillas (InstancedMesh) y la geometría del pupitre que reutiliza la mesa del laboratorio |
 | `js/lab.js` | Máquina de estados: tomar, soltar, caer, acierto/error, bloqueo, reinicio, retroalimentación visual |
 | `js/scene.js` | Mesa, 5 piezas y 5 cajas de depósito; carga del salón GLB (`loadSalon`) y entorno genérico de respaldo (`buildGenericEnvironment`) |
@@ -82,6 +84,10 @@ Cada pieza es una caja de colisión vertical (radio `r`, semialtura `h`); los s�
 
 ## Mobiliario
 `CLASSROOM` (config.js) define 6 filas × 4 columnas de pupitres (tablero azul, estructura negra) con una silla detrás de cada uno, con pasillo central libre; todo son datos (quitar filas o columnas no requiere código). La mesa del laboratorio usa el mismo pupitre, más grande. ~4 000 triángulos y 4 draw calls (InstancedMesh). Las sillas tienen una pequeña variación fija (semilla constante) para no verse clonadas.
+
+## Profesor y puerta
+- **Escritorio del profesor** (`TEACHER` en config.js): en la esquina del frente junto a las ventanas, sobre una tarima baja, con tablero de madera, estructura negra, laptop y papeles. El profesor está sentado en su silla mirando a los alumnos y voltea la cabeza hacia el usuario. La tarima y el escritorio son sólidos para la física.
+- **Puerta** (`DOOR` en config.js): se abre o cierra **tocándola con la punta del dedo índice** (o con el control), **apuntándola con el rayo y pellizcando**, o con **clic** en la vista de escritorio. Gira 95° hacia el interior del salón; un toque solo alterna al entrar en contacto (con 0.8 s de espera) para que no se abra y cierre de inmediato.
 
 ## Salón de clases (GLB)
 El laboratorio se monta dentro de `assets/models/salon.glb` (carga con `GLTFLoader`, ruta relativa, compatible con GitHub Pages). Si el archivo falla, se muestra el error en `#error-box` y se usa el entorno genérico anterior: la práctica sigue funcionando.

@@ -88,9 +88,40 @@ export const CLASSROOM = {
   enabled: true,
   desk: { width: 1.1, depth: 0.5, height: 0.75, topThickness: 0.035 },
   columnsX: [-2.65, -1.55, 1.55, 2.65],
-  rowsZ: [-1.6, -0.45, 0.7, 1.85, 3.0, 4.15],
+  // La primera fila empieza en z = -1.25 para dejar espacio al frente para el escritorio del profesor.
+  rowsZ: [-1.25, -0.13, 0.99, 2.11, 3.23, 4.35],
   colors: { top: 0x2457c5, frame: 0x15171c, chair: 0x30343b },
   chairJitter: 0.1, // variación fija (determinista) de posición/giro de las sillas, para que no se vean clonadas
   // Muros invisibles para las piezas (margen respecto a los límites reales del modelo, en metros).
   roomMargin: 0.25,
+};
+
+// Escritorio del profesor (como el del salón real): tarima baja, escritorio de tablero de madera con
+// estructura negra y silla negra, en la esquina del frente junto a las ventanas (x < 0). El profesor
+// está sentado mirando a los alumnos (+z). Coordenadas de MUNDO.
+export const TEACHER = {
+  enabled: true,
+  platform: { min: [-3.37, -2.99], max: [-1.25, -1.65], height: 0.12, color: 0xc9c2b4 },
+  desk: { x: -2.35, z: -2.15, width: 1.2, depth: 0.62, height: 0.76, topThickness: 0.035, topColor: 0x7a5232 },
+  chairZ: -2.72, // silla detrás del escritorio (lado del pizarrón), girada 180° hacia los alumnos
+  professor: {
+    skin: 0xc68e64, hair: 0x2a1f1a, shirt: 0x4f6d8f, pants: 0x2b2f3a, shoes: 0x141414,
+    maxHeadYaw: 0.7, // rad: hasta dónde voltea la cabeza para mirar al usuario
+  },
+};
+
+// Puerta del salón: la hoja de la puerta del GLB se separa del marco y gira sobre su bisagra.
+// Coordenadas del MODELO (antes de girar/colocar el salón). Se abre/cierra al tocarla con el dedo,
+// al apuntarla con el rayo y pellizcar, o con un clic en la vista de escritorio.
+export const DOOR = {
+  enabled: true,
+  materials: { wood: 'Madera roble', glass: 'Cristal puerta', handle: 'Metal manija' },
+  // Hoja: x 0.08…0.12, y 0.005…2.278, z -1.508…-0.572 (el resto de "Madera roble" es marco y dintel).
+  leaf: { min: [0.079, 0.004, -1.509], max: [0.121, 2.279, -0.571] },
+  hinge: [0.12, -0.572],     // eje vertical (x, z) del lado opuesto a la manija, cara interior
+  openAngleDeg: -95,         // negativo = abre hacia el interior del salón
+  speed: 2.4,                // rad/s
+  touchMargin: 0.03,         // m alrededor de la hoja que cuentan como "tocar"
+  touchCooldownMs: 800,      // evita que un solo toque la abra y la cierre
+  hallway: { color: 0xb8b2a6, depth: 1.6 }, // piso del pasillo que se ve al abrir
 };
