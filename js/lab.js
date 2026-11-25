@@ -3,21 +3,23 @@
 // toda decisión de negocio ocurre aquí.
 //
 // Flujo de una pieza: disponible → seleccionada → en movimiento → (suelta) cayendo → colocada
-//                                                                              └→ error → disponible
+//                                                                              └→ disponible (donde cayó)
 // Al soltarla actúa la gravedad (js/physics.js). Cuando queda quieta se evalúa en qué caja quedó.
+// Si no quedó en su caja, la pieza se QUEDA donde cayó (piso, mesa, otra caja): hay que recogerla.
 import * as THREE from 'three';
-import { LAB } from './config.js?v=20261125b';
-import { validateDeposit } from './rules.js?v=20261125b';
-import { createBody } from './physics.js?v=20261125b';
-import { STATUS, PHASE, formatTime } from './state.js?v=20261125b';
+import { LAB, CELEBRATION } from './config.js?v=20261125c';
+import { validateDeposit } from './rules.js?v=20261125c';
+import { createBody } from './physics.js?v=20261125c';
+import { STATUS, PHASE, formatTime } from './state.js?v=20261125c';
 
 const C = { none: 0x000000, hover: 0xffffff, error: 0xff1a1a, ok: 0x22c55e };
 
-export function createLabController({ store, pieces, targets, hud, sounds, physics }) {
+export function createLabController({ store, pieces, targets, hud, sounds, physics, onComplete, onReset }) {
   const boxVolumes = [...targets.values()].map((t) => t.volume);
+  const perTarget = new Map(); // id de caja -> cuántas piezas le corresponden
+  for (const p of pieces.values()) perTarget.set(p.config.target, (perTarget.get(p.config.target) ?? 0) + 1);
   const P = LAB.physics;
   const bodies = new Map();      // id -> cuerpo físico de las piezas que están cayendo
-  const rejected = new Map();    // id -> instante en que la pieza rechazada vuelve a su lugar
   const IDENTITY_Q = new THREE.Quaternion();
   let lastTick = null;
   const hovers = new Map();      // fuente -> id de pieza apuntada
@@ -77,12 +79,6 @@ export function createLabController({ store, pieces, targets, hud, sounds, physi
       piece.mesh.quaternion.slerp(IDENTITY_Q, Math.min(1, dt * 14)); // se endereza al caer
       if (body.restTime >= P.restSeconds || body.age >= P.maxFallSeconds) settle(id, now);
     }
-    for (const [id, until] of rejected) {
-      if (now < until) continue;
-      rejected.delete(id);
-      resetTransform(pieces.get(id));
-      store.setPiece(id, STATUS.AVAILABLE, null);
-    }
   }
 
   /** La pieza quedó quieta: se evalúa en qué caja está. */
@@ -100,29 +96,30 @@ export function createLabController({ store, pieces, targets, hud, sounds, physi
     const n = store.placedCount();
     if (n === store.total) {
       store.stopTimer(now);
-      store.setPhase(PHASE.DONE, `¡Completado! Tiempo final ${formatTime(store.elapsedMs(now))}`);
+      store.setPhase(PHASE.DONE, `${CELEBRATION.message} Tiempo final ${formatTime(store.elapsedMs(now))}`);
       sounds.finish();
+      onComplete?.();
     } else {
       store.setPhase(PHASE.ACTIVE, `¡Correcto! ${piece.config.label} depositado en su caja (${n}/${store.total})`);
       sounds.success();
     }
   }
 
+  /** No quedó en su caja: se queda donde cayó y vuelve a estar disponible (hay que recogerla). */
   function reject(piece, result, now) {
-    const until = now + LAB.feedbackMs;
-    piece.flashUntil = until;
-    let msg;
+    store.setPiece(piece.config.id, STATUS.AVAILABLE, null);
     if (result.reason === 'caja') {
+      const until = now + LAB.feedbackMs;
       const t = targets.get(result.boxId);
+      piece.flashUntil = until;
       t.flashUntil = until;
-      msg = `Error: ${piece.config.label} no va en la caja ${t.label}`;
+      store.setPhase(PHASE.ERROR, `Error: ${piece.config.label} no va en la caja ${t.label}. Sácala y llévala a la suya`, until);
+      sounds.error();
     } else {
-      msg = `Error: ${piece.config.label} quedó fuera de las cajas`;
+      const where = piece.mesh.position.y < 0.3 ? 'en el piso' : 'fuera de las cajas';
+      store.setPhase(PHASE.ACTIVE, `${piece.config.label} quedó ${where}: recógela y llévala a su caja`);
+      sounds.drop();
     }
-    // La pieza se queda visible donde cayó mientras dura la señal roja y luego vuelve a su lugar.
-    rejected.set(piece.config.id, until);
-    store.setPhase(PHASE.ERROR, msg, until);
-    sounds.error();
   }
 
   /** Pérdida de tracking / cancelación: devuelve la pieza sin validar ni sumar. */
@@ -141,12 +138,12 @@ export function createLabController({ store, pieces, targets, hud, sounds, physi
   function reset() {
     for (const cancel of cancellers) cancel(); // suelta selecciones activas primero
     bodies.clear();
-    rejected.clear();
     for (const p of pieces.values()) { resetTransform(p); p.flashUntil = 0; }
     for (const t of targets.values()) t.flashUntil = 0;
     hovers.clear();
     grabPositions.clear();
     store.reset();
+    onReset?.();
     sounds.click();
   }
 
@@ -175,11 +172,16 @@ export function createLabController({ store, pieces, targets, hud, sounds, physi
       p.material.emissive.setHex(color);
       p.material.emissiveIntensity = intensity;
     }
+    // Caja: se pone más verde conforme se llena; verde completo con todas sus piezas.
+    const filled = new Map();
+    for (const p of pieces.values()) {
+      if (store.piece(p.config.id).status === STATUS.PLACED) filled.set(p.config.target, (filled.get(p.config.target) ?? 0) + 1);
+    }
     for (const t of targets.values()) {
-      const placed = store.piece(t.pieceId).status === STATUS.PLACED;
+      const ratio = (filled.get(t.id) ?? 0) / (perTarget.get(t.id) || 1);
       const flash = t.flashUntil > now;
-      t.material.emissive.setHex(flash ? C.error : placed ? C.ok : C.none);
-      t.material.emissiveIntensity = flash ? 0.8 : placed ? 0.35 : 0;
+      t.material.emissive.setHex(flash ? C.error : ratio > 0 ? C.ok : C.none);
+      t.material.emissiveIntensity = flash ? 0.8 : ratio * 0.4;
     }
   }
 

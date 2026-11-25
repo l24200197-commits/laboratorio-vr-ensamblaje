@@ -6,8 +6,10 @@ export const LAB = {
   tableTopY: 0.78,
   // Mesa del laboratorio: pupitre grande de tablero azul y patas negras (como los del salón).
   table: { width: 1.5, depth: 0.7, centerZ: -0.6 },
-  // Área permitida para soltar piezas (se recorta al soltar; después actúa la gravedad).
-  dragBounds: { min: [-0.9, 0.6, -1.0], max: [0.9, 1.7, -0.2] },
+  // Mesa de atrás (a espaldas del usuario, en el pasillo central): ahí están las piezas al iniciar.
+  backTable: { width: 1.5, depth: 0.75, centerZ: 0.85 },
+  // Área permitida para soltar piezas: todo el salón (si caen al piso, ahí se quedan).
+  dragBounds: { min: [-3.3, 0.05, -2.9], max: [3.6, 2.4, 5.1] },
   hud: { position: [0, 1.48, -1.15], width: 0.9, height: 0.45 },
   rayLength: 3,
   // Gravedad y rebote de las piezas al soltarlas (ver js/physics.js).
@@ -17,7 +19,7 @@ export const LAB = {
     friction: 5,          // frenado horizontal mientras tocan una superficie (1/s)
     restSpeed: 0.05,      // m/s: por debajo de esto la pieza se considera quieta
     restSeconds: 0.35,    // tiempo quieta antes de evaluar el depósito
-    maxFallSeconds: 6,    // seguro: evalúa aunque siga moviéndose
+    maxFallSeconds: 3,    // seguro: evalúa aunque siga moviéndose (p. ej. resbalando sobre otras piezas)
     throwScale: 0.6,      // fracción de la velocidad de la mano que hereda la pieza al soltarla (VR)
     maxThrowSpeed: 2,     // m/s, tope de la velocidad heredada
   },
@@ -25,27 +27,52 @@ export const LAB = {
 
 // Cajas de depósito (una por pieza). Medidas internas y de pared en metros.
 // La pieza correcta es la que queda DENTRO de su caja (centro dentro del hueco y por debajo del borde).
-export const BOX = { inner: 0.2, wall: 0.012, floor: 0.012, height: 0.12 };
+// Caben 5 piezas por caja (4 abajo + 1 encima, por debajo del borde).
+export const BOX = { inner: 0.26, wall: 0.012, floor: 0.012, height: 0.18 };
 
-// Cinco piezas distintas por forma, color y etiqueta.
-export const PIECES = [
-  { id: 'cubo', label: 'CUBO', shape: 'box', color: 0xe4572e, startX: -0.48, target: 'caja-cubo' },
-  { id: 'esfera', label: 'ESFERA', shape: 'sphere', color: 0x29a3d9, startX: -0.24, target: 'caja-esfera' },
-  { id: 'cono', label: 'CONO', shape: 'cone', color: 0xf2c14e, startX: 0, target: 'caja-cono' },
-  { id: 'cilindro', label: 'CILINDRO', shape: 'cylinder', color: 0x7bc950, startX: 0.24, target: 'caja-cilindro' },
-  { id: 'prisma', label: 'PRISMA', shape: 'prism', color: 0x9b5de5, startX: 0.48, target: 'caja-prisma' },
+// Tipos de pieza: forma, color y etiqueta.
+export const SHAPE_TYPES = [
+  { type: 'cubo', label: 'CUBO', shape: 'box', color: 0xe4572e },
+  { type: 'esfera', label: 'ESFERA', shape: 'sphere', color: 0x29a3d9 },
+  { type: 'cono', label: 'CONO', shape: 'cone', color: 0xf2c14e },
+  { type: 'cilindro', label: 'CILINDRO', shape: 'cylinder', color: 0x7bc950 },
+  { type: 'prisma', label: 'PRISMA', shape: 'prism', color: 0x9b5de5 },
 ];
-export const PIECE_ROW_Z = -0.4;
+export const PIECES_PER_TYPE = 5;
 
-// Cajas en orden distinto al de las piezas para que no sea trivial.
+// Piezas: PIECES_PER_TYPE de cada tipo, mezcladas (orden fijo) en una cuadrícula sobre la mesa de atrás.
+export const PIECES = (() => {
+  const list = [];
+  for (const t of SHAPE_TYPES) {
+    for (let n = 1; n <= PIECES_PER_TYPE; n++) list.push({ ...t, id: `${t.type}-${n}`, target: `caja-${t.type}` });
+  }
+  let seed = 7; // barajado determinista (siempre la misma mezcla)
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  const cols = 5, dx = 0.26, dz = 0.135;
+  const z0 = LAB.backTable.centerZ - ((Math.ceil(list.length / cols) - 1) * dz) / 2;
+  list.forEach((p, i) => { p.startX = ((i % cols) - (cols - 1) / 2) * dx; p.startZ = z0 + Math.floor(i / cols) * dz; });
+  return list;
+})();
+
+// Cajas (una por tipo) en orden distinto al de los tipos para que no sea trivial.
 export const TARGETS = [
-  { id: 'caja-cilindro', pieceId: 'cilindro', x: -0.52 },
-  { id: 'caja-prisma', pieceId: 'prisma', x: -0.26 },
-  { id: 'caja-cubo', pieceId: 'cubo', x: 0 },
-  { id: 'caja-esfera', pieceId: 'esfera', x: 0.26 },
-  { id: 'caja-cono', pieceId: 'cono', x: 0.52 },
+  { id: 'caja-cilindro', type: 'cilindro', x: -0.58 },
+  { id: 'caja-prisma', type: 'prisma', x: -0.29 },
+  { id: 'caja-cubo', type: 'cubo', x: 0 },
+  { id: 'caja-esfera', type: 'esfera', x: 0.29 },
+  { id: 'caja-cono', type: 'cono', x: 0.58 },
 ];
-export const TARGET_ROW_Z = -0.78; // centro de las cajas, al fondo de la mesa
+export const TARGET_ROW_Z = -0.72; // centro de las cajas sobre la mesa del frente
+
+// Celebración al completar todas las piezas.
+export const CELEBRATION = {
+  message: '¡ERES UN DEMONIO!',
+  seconds: 8,
+  confetti: 450,
+  sparks: 600,
+  banner: { position: [0, 1.98, -1.15], width: 1.3, height: 0.26 },
+};
 
 // Salón de clases (modelo GLB exportado de SketchUp y optimizado: metros, +Y arriba, piso en y = 0).
 // Todo lo que sigue son DATOS: para mover el salón respecto al laboratorio basta con editar aquí.
@@ -59,7 +86,7 @@ export const TARGET_ROW_Z = -0.78; // centro de las cajas, al fondo de la mesa
 // Resultado: interior del salón en el mundo x ∈ [-3.37, 3.73], z ∈ [-2.99, 5.19]; sin muebles ni muros
 // dentro del área de trabajo (la mesa ocupa x ±0.75, z -0.95…-0.25). Los pupitres (CLASSROOM) dejan libre |x| < 1.0.
 export const SALON = {
-  url: 'assets/models/salon.glb?v=20261125b',
+  url: 'assets/models/salon.glb?v=20261125c',
   position: [3.93, 0, -3.215],
   rotationYDeg: 180,
   // El modelo no trae techo: se cierra con un plano a la altura de los muros para no ver el vacío.
@@ -105,7 +132,8 @@ export const TEACHER = {
   desk: { x: -2.35, z: -2.15, width: 1.2, depth: 0.62, height: 0.76, topThickness: 0.035, topColor: 0x7a5232 },
   chairZ: -2.72, // silla detrás del escritorio (lado del pizarrón), girada 180° hacia los alumnos
   professor: {
-    skin: 0xc68e64, hair: 0x2a1f1a, shirt: 0x4f6d8f, pants: 0x2b2f3a, shoes: 0x141414,
+    skin: 0xc68e64, hair: 0x1c1512, jacket: 0x6b4226, shirt: 0xe9e4da, pants: 0x2b2f3a, shoes: 0x141414,
+    glasses: 0x111111,
     maxHeadYaw: 0.7, // rad: hasta dónde voltea la cabeza para mirar al usuario
   },
 };
@@ -124,4 +152,17 @@ export const DOOR = {
   touchMargin: 0.03,         // m alrededor de la hoja que cuentan como "tocar"
   touchCooldownMs: 800,      // evita que un solo toque la abra y la cierre
   hallway: { color: 0xb8b2a6, depth: 1.6 }, // piso del pasillo que se ve al abrir
+};
+
+// Visitantes: al abrir la puerta aparecen unas mujeres en el pasillo saludando con la mano.
+// Coordenadas del MODELO del salón (el pasillo está en x < 0; el interior del salón en x > 0.2).
+export const VISITORS = {
+  enabled: true,
+  people: [
+    { x: -0.75, z: -1.32, dress: 0xc2185b, hair: 0x3b2314, skin: 0xd9a27a, hairLong: true, phase: 0 },
+    { x: -0.95, z: -1.0, dress: 0x00897b, hair: 0x111111, skin: 0xa8734f, hairLong: true, phase: 1.3 },
+    { x: -0.7, z: -0.7, dress: 0xf9a825, hair: 0x8d5524, skin: 0xe8b996, hairLong: false, phase: 2.4 },
+  ],
+  greeting: '¡Hola!',
+  hallwayWall: { color: 0xe6e1d6, height: 2.7 },
 };

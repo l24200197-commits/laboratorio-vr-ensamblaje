@@ -3,7 +3,7 @@
 // 24 pupitres + 24 sillas = 4 draw calls y ~4 000 triángulos en total.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CLASSROOM } from './config.js?v=20261125b';
+import { CLASSROOM } from './config.js?v=20261125c';
 
 function box(w, h, d, x, y, z) {
   const g = new THREE.BoxGeometry(w, h, d);

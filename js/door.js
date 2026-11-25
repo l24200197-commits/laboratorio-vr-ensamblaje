@@ -3,7 +3,7 @@
 // config.js) y se montan, junto con el cristal y la manija, en un pivote sobre la bisagra.
 // Se abre/cierra con: toque del dedo índice (manos XR), rayo + pinza, o clic en escritorio.
 import * as THREE from 'three';
-import { DOOR } from './config.js?v=20261125b';
+import { DOOR } from './config.js?v=20261125c';
 
 function findByMaterial(root, name) {
   let found = null;
@@ -118,5 +118,5 @@ export function setupDoor(root, cfg = DOOR, { onToggle } = {}) {
     return false;
   }
 
-  return { meshes, toggle, update, touch, isOpen: () => open };
+  return { meshes, toggle, update, touch, isOpen: () => open, openness: () => angle / openAngle };
 }

@@ -1,19 +1,21 @@
 // Punto de entrada: inicializa renderer, escena, estado, entradas y sesión WebXR.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PIECES, SALON, CLASSROOM, LAB, TEACHER, DOOR } from './config.js?v=20261125b';
-import { createStore } from './state.js?v=20261125b';
-import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js?v=20261125b';
-import { createHud } from './hud.js?v=20261125b';
-import { createLabController } from './lab.js?v=20261125b';
-import { createPhysics } from './physics.js?v=20261125b';
-import { buildClassroom } from './classroom.js?v=20261125b';
-import { buildTeacherArea } from './teacher.js?v=20261125b';
-import { setupDoor } from './door.js?v=20261125b';
-import { createXRHands } from './xr-hands.js?v=20261125b';
-import { createDesktopPointer } from './desktop-pointer.js?v=20261125b';
-import { createPageUI, detectXR } from './page-ui.js?v=20261125b';
-import { sounds, unlockAudio } from './audio.js?v=20261125b';
+import { PIECES, SALON, CLASSROOM, LAB, TEACHER, DOOR, VISITORS } from './config.js?v=20261125c';
+import { createStore } from './state.js?v=20261125c';
+import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js?v=20261125c';
+import { createHud } from './hud.js?v=20261125c';
+import { createLabController } from './lab.js?v=20261125c';
+import { createPhysics } from './physics.js?v=20261125c';
+import { buildClassroom } from './classroom.js?v=20261125c';
+import { buildTeacherArea } from './teacher.js?v=20261125c';
+import { setupDoor } from './door.js?v=20261125c';
+import { buildVisitors } from './visitors.js?v=20261125c';
+import { createCelebration } from './celebration.js?v=20261125c';
+import { createXRHands } from './xr-hands.js?v=20261125c';
+import { createDesktopPointer } from './desktop-pointer.js?v=20261125c';
+import { createPageUI, detectXR } from './page-ui.js?v=20261125c';
+import { sounds, unlockAudio } from './audio.js?v=20261125c';
 
 const ui = createPageUI();
 
@@ -47,6 +49,9 @@ async function init() {
 
   const table = buildTable(); // la mesa es del laboratorio: va con cualquier entorno
   scene.add(table);
+  const backTable = buildTable(LAB.backTable, 'mesa-atras'); // aquí están las piezas al iniciar
+  scene.add(backTable);
+  const celebration = createCelebration(scene);
   const labGroup = new THREE.Group(); // en el origen: coordenadas locales = mundo
   scene.add(labGroup);
 
@@ -57,10 +62,14 @@ async function init() {
   // Gravedad: sólidos fijos = mesa + cajas (el salón y su mobiliario se suman al cargar).
   const physics = createPhysics({
     ...LAB.physics,
-    solids: [...table.userData.solids, ...[...targets.values()].flatMap((t) => t.solids)],
+    solids: [...table.userData.solids, ...backTable.userData.solids, ...[...targets.values()].flatMap((t) => t.solids)],
     bounds: { min: [-3.5, -3.5], max: [3.5, 3.5] }, // entorno de respaldo; con el salón se ajusta a sus muros
   });
-  const lab = createLabController({ store, pieces, targets, hud, sounds, physics });
+  const lab = createLabController({
+    store, pieces, targets, hud, sounds, physics,
+    onComplete: () => celebration.start(),
+    onReset: () => celebration.stop(),
+  });
 
   const onButton = (action) => {
     if (action === 'reset') lab.reset();
@@ -68,7 +77,7 @@ async function init() {
   };
 
   // Elementos interactivos del salón que se agregan al cargar el GLB (la puerta).
-  const world = { door: null, teacher: null };
+  const world = { door: null, teacher: null, visitors: null };
   const xrHands = createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton, world });
   createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton, world });
 
@@ -140,6 +149,8 @@ async function init() {
     else controls.update();
     lab.tick(now);
     world.door?.update(dt);
+    world.visitors?.update(now, dt, world.door?.openness() ?? 0);
+    celebration.update(dt);
     world.teacher?.update(now, camera.getWorldPosition(viewer));
     renderer.render(scene, camera);
   });
@@ -161,6 +172,7 @@ async function init() {
       physics.add(...world.teacher.solids);
     }
     if (DOOR.enabled) world.door = setupDoor(root, DOOR, { onToggle: (open) => sounds.door(open) });
+    if (VISITORS.enabled && world.door) world.visitors = buildVisitors(root, VISITORS);
   } catch (err) {
     console.warn('Salón no disponible, se usa el entorno de respaldo:', err);
     buildGenericEnvironment(scene);
@@ -170,7 +182,7 @@ async function init() {
 
   // Herramientas de inspección para pruebas: solo con ?debug en la URL.
   if (new URLSearchParams(location.search).has('debug')) {
-    window.__lab = { THREE, scene, camera, renderer, controls, store, pieces, targets, lab, hud, physics, classroom, world };
+    window.__lab = { THREE, scene, camera, renderer, controls, store, pieces, targets, lab, hud, physics, classroom, world, celebration };
   }
 
   const xr = await detectXR();

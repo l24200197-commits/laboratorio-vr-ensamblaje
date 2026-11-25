@@ -1,8 +1,8 @@
 // Panel HUD 3D dentro de VR: textura de canvas sobre un plano + botones 3D seleccionables.
 // Solo se redibuja cuando cambia la información (no se reconstruye la escena).
 import * as THREE from 'three';
-import { LAB } from './config.js?v=20261125b';
-import { makeCanvas, roundRect } from './text.js?v=20261125b';
+import { LAB } from './config.js?v=20261125c';
+import { makeCanvas, roundRect } from './text.js?v=20261125c';
 
 const PHASE_COLORS = { pendiente: '#94a3b8', activo: '#38bdf8', error: '#ef4444', completado: '#22c55e' };
 
@@ -62,7 +62,7 @@ export function createHud(parent) {
     ctx.fillText('Laboratorio de ensamblaje 3D', 40, 30);
     ctx.font = '28px system-ui, sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText('Apunta · pellizca (índice + pulgar) · suelta sobre su caja', 40, 92);
+    ctx.fillText('Toma las piezas de la mesa de atrás · suéltalas en su caja', 40, 92);
 
     ctx.font = 'bold 72px system-ui, sans-serif';
     ctx.fillStyle = '#ffffff';

@@ -2,8 +2,8 @@
 // Solo primitivas de Three.js (sin descargas). El profesor respira y voltea la cabeza hacia el usuario.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CLASSROOM, TEACHER } from './config.js?v=20261125b';
-import { deskGeometries, chairGeometries } from './classroom.js?v=20261125b';
+import { CLASSROOM, TEACHER } from './config.js?v=20261125c';
+import { deskGeometries, chairGeometries } from './classroom.js?v=20261125c';
 
 const mat = (color, roughness = 0.6, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
@@ -32,7 +32,9 @@ function boxAt(w, h, d, x, y, z) {
 export function buildProfessor(c = TEACHER.professor) {
   const group = new THREE.Group();
   group.name = 'profesor';
-  const skin = mat(c.skin, 0.7), shirt = mat(c.shirt, 0.8), pants = mat(c.pants, 0.85), shoes = mat(c.shoes, 0.5), hair = mat(c.hair, 0.9);
+  const skin = mat(c.skin, 0.7), shirt = mat(c.shirt, 0.8), pants = mat(c.pants, 0.85), shoes = mat(c.shoes, 0.5);
+  const jacket = mat(c.jacket, 0.75);
+  const hair = mat(c.hair, 0.32, 0.15); // peinado hacia atrás con gel: brillante
 
   // Piernas: muslos hacia delante, espinillas hacia abajo, zapatos.
   const legs = [];
@@ -52,10 +54,26 @@ export function buildProfessor(c = TEACHER.professor) {
   torso.position.set(0, 0.62, -0.04);
   torso.rotation.x = 0.08; // ligeramente inclinado hacia el escritorio
   group.add(torso);
-  const chest = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.3, 4, 12), shirt);
+  // Chamarra café abierta: se ve la camisa al frente, con cuello y solapas.
+  const chest = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.3, 4, 12), jacket);
   chest.scale.set(1.2, 1, 0.72);
   chest.position.y = 0.27;
   torso.add(chest);
+  const shirtFront = new THREE.Mesh(mergeGeometries([
+    boxAt(0.085, 0.36, 0.012, 0, 0.3, 0.112),                                   // camisa
+    boxAt(0.05, 0.03, 0.03, 0, 0, 0).rotateZ(-0.35).translate(-0.035, 0.535, 0.075),               // cuello
+    boxAt(0.05, 0.03, 0.03, 0, 0, 0).rotateZ(0.35).translate(0.035, 0.535, 0.075),
+  ]), shirt);
+  torso.add(shirtFront);
+  const lapels = new THREE.Mesh(mergeGeometries([-1, 1].map((sx) => {
+    const g = boxAt(0.05, 0.22, 0.014, 0, 0, 0);
+    g.rotateZ(sx * 0.32);
+    g.translate(sx * 0.065, 0.4, 0.108);
+    return g;
+  })), mat(new THREE.Color(c.jacket).multiplyScalar(0.75).getHex(), 0.7));
+  torso.add(lapels);
+  const zipper = new THREE.Mesh(mergeGeometries([-1, 1].map((sx) => boxAt(0.008, 0.3, 0.01, sx * 0.048, 0.24, 0.114))), mat(0x3b2a1a, 0.4, 0.4));
+  torso.add(zipper);
 
   // Brazos: hombro -> codo -> mano apoyada en el escritorio (coordenadas del torso).
   const arms = [], hands = [];
@@ -67,7 +85,7 @@ export function buildProfessor(c = TEACHER.professor) {
     h.translate(wr[0], wr[1], wr[2] + 0.04);
     hands.push(h);
   }
-  torso.add(new THREE.Mesh(mergeGeometries(arms), shirt));
+  torso.add(new THREE.Mesh(mergeGeometries(arms), jacket));
   torso.add(new THREE.Mesh(mergeGeometries(hands), skin));
 
   // Cuello y cabeza (pivote en el cuello para voltear).
@@ -81,11 +99,30 @@ export function buildProfessor(c = TEACHER.professor) {
   face.scale.set(0.92, 1.12, 1);
   face.position.y = 0.11;
   head.add(face);
-  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.11, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hair);
-  hairCap.scale.set(0.95, 1.1, 1.04);
-  hairCap.position.set(0, 0.125, -0.008);
-  hairCap.rotation.x = -0.35;
-  head.add(hairCap);
+  // Cabello peinado hacia atrás: casquete inclinado (deja la frente libre), volumen arriba y nuca.
+  const hairGeo = mergeGeometries([
+    new THREE.SphereGeometry(0.112, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.5)
+      .scale(0.97, 1.15, 1.06).rotateX(-0.5).translate(0, 0.118, -0.012),
+    new THREE.SphereGeometry(0.1, 16, 10).scale(0.86, 0.36, 0.86).rotateX(-0.25).translate(0, 0.218, -0.005), // copete hacia atrás
+    new THREE.SphereGeometry(0.1, 16, 10).scale(0.96, 0.8, 0.72).translate(0, 0.105, -0.048),               // nuca
+  ]);
+  head.add(new THREE.Mesh(hairGeo, hair));
+  // Lentes: armazón negro (dos aros, puente y patas) con cristal ligeramente azulado.
+  const frameMat = mat(c.glasses, 0.3, 0.3);
+  const glasses = new THREE.Group();
+  glasses.position.set(0, 0.135, 0.108);
+  const rims = mergeGeometries([
+    ...[-1, 1].map((sx) => new THREE.TorusGeometry(0.024, 0.0035, 6, 20).scale(1.15, 0.85, 1).translate(sx * 0.04, 0, 0)),
+    boxAt(0.024, 0.004, 0.004, 0, 0.004, 0),                                            // puente
+    ...[-1, 1].map((sx) => boxAt(0.004, 0.004, 0.11, sx * 0.068, 0.002, -0.055)), // patas
+  ]);
+  glasses.add(new THREE.Mesh(rims, frameMat));
+  const lenses = new THREE.Mesh(
+    mergeGeometries([-1, 1].map((sx) => new THREE.CircleGeometry(0.023, 16).scale(1.15, 0.85, 1).translate(sx * 0.04, 0, 0))),
+    new THREE.MeshStandardMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.3, roughness: 0.05, metalness: 0.2, side: THREE.DoubleSide }),
+  );
+  glasses.add(lenses);
+  head.add(glasses);
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.04, 8), skin);
   nose.rotation.x = Math.PI / 2;
   nose.position.set(0, 0.1, 0.11);

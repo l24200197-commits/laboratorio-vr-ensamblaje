@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LAB, BOX, CLASSROOM, PIECES, PIECE_ROW_Z, TARGETS, TARGET_ROW_Z } from './config.js?v=20261125b';
-import { makeLabel } from './text.js?v=20261125b';
-import { deskGeometries } from './classroom.js?v=20261125b';
+import { LAB, BOX, CLASSROOM, PIECES, SHAPE_TYPES, TARGETS, TARGET_ROW_Z } from './config.js?v=20261125c';
+import { makeLabel } from './text.js?v=20261125c';
+import { deskGeometries } from './classroom.js?v=20261125c';
 
 const SHAPES = {
   // half = semialtura; r = radio horizontal que usa la física (caja de colisión vertical).
@@ -104,13 +104,12 @@ export async function loadSalon(scene, cfg, onProgress) {
 }
 
 /** Mesa del laboratorio: pupitre grande (tablero azul, patas negras) igual a los del salón. */
-export function buildTable() {
-  const { width, depth, centerZ } = LAB.table;
+export function buildTable({ width, depth, centerZ } = LAB.table, name = 'mesa-laboratorio') {
   const top = LAB.tableTopY;
   const thickness = 0.04;
   const { top: topGeo, frame } = deskGeometries({ width, depth, height: top, topThickness: thickness });
   const group = new THREE.Group();
-  group.name = 'mesa-laboratorio';
+  group.name = name;
   const c = CLASSROOM.colors;
   const slab = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({ color: c.top, roughness: 0.4, metalness: 0.05 }));
   const legs = new THREE.Mesh(frame, new THREE.MeshStandardMaterial({ color: c.frame, roughness: 0.5, metalness: 0.3 }));
@@ -131,7 +130,7 @@ export function buildPieces(parent) {
     const mesh = new THREE.Mesh(shape.make(), material);
     mesh.name = `pieza-${cfg.id}`;
     mesh.userData = { kind: 'piece', id: cfg.id };
-    mesh.position.set(cfg.startX, LAB.tableTopY + shape.half, PIECE_ROW_Z);
+    mesh.position.set(cfg.startX, LAB.tableTopY + shape.half, cfg.startZ);
     parent.add(mesh);
     pieces.set(cfg.id, {
       config: cfg,
@@ -180,17 +179,17 @@ function boxGeometry(bodyColor, rimColor) {
  * Cajas de depósito (una por pieza). Devuelve Map id -> caja con:
  *  - volume: {id, cx, cz, innerHalf, floorY, rimY} para validar el depósito (reglas puras)
  *  - solids: AABB del piso y las 4 paredes para la física
- * @returns {Map<string, {id, pieceId, label, mesh, material, baseColor, volume, solids, position, flashUntil:number}>}
+ * @returns {Map<string, {id, type, label, mesh, material, baseColor, volume, solids, position, flashUntil:number}>}
  */
 export function buildTargets(parent) {
   const targets = new Map();
-  const byId = new Map(PIECES.map((p) => [p.id, p]));
+  const byType = new Map(SHAPE_TYPES.map((p) => [p.type, p]));
   const { inner, wall, floor, height } = BOX;
   const o = inner + 2 * wall;
   const y0 = LAB.tableTopY;
   for (const cfg of TARGETS) {
-    const piece = byId.get(cfg.pieceId);
-    if (!piece) throw new Error(`La caja ${cfg.id} apunta a una pieza inexistente`);
+    const piece = byType.get(cfg.type);
+    if (!piece) throw new Error(`La caja ${cfg.id} apunta a un tipo de pieza inexistente`);
     const bright = new THREE.Color(piece.color);
     const baseColor = bright.clone().multiplyScalar(0.55).getHex();
 
@@ -204,7 +203,7 @@ export function buildTargets(parent) {
     parent.add(mesh);
 
     // Etiqueta en la cara frontal (la que mira al usuario).
-    const label = makeLabel(piece.label, { width: 0.17, height: 0.05, border: `#${piece.color.toString(16).padStart(6, '0')}` });
+    const label = makeLabel(piece.label, { width: 0.22, height: 0.06, border: `#${piece.color.toString(16).padStart(6, '0')}` });
     label.position.set(0, height * 0.45, o / 2 + 0.002);
     label.userData.kind = 'label';
     mesh.add(label);
@@ -220,7 +219,7 @@ export function buildTargets(parent) {
 
     targets.set(cfg.id, {
       id: cfg.id,
-      pieceId: cfg.pieceId,
+      type: cfg.type,
       label: piece.label,
       mesh,
       material,

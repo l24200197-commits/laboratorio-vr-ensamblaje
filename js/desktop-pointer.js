@@ -1,8 +1,8 @@
 // Entrada de ESCRITORIO solo para depuración: arrastra piezas con el ratón sobre un plano
 // horizontal. NO sustituye la prueba con manos en Meta Quest 3.
 import * as THREE from 'three';
-import { pickHit } from './lab.js?v=20261125b';
-import { LAB, BOX } from './config.js?v=20261125b';
+import { pickHit } from './lab.js?v=20261125c';
+import { LAB, BOX } from './config.js?v=20261125c';
 
 // Altura a la que se lleva la pieza con el ratón: por encima del borde de las cajas.
 const CARRY_Y = LAB.tableTopY + BOX.height + 0.12;

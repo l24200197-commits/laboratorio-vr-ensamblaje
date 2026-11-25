@@ -26,7 +26,7 @@ export function createStore(pieceIds) {
   const initial = () => ({
     pieces: new Map(pieceIds.map((id) => [id, { status: STATUS.AVAILABLE, holder: null }])),
     phase: PHASE.PENDING,
-    message: 'Toma una pieza para iniciar',
+    message: 'Toma las piezas de la mesa de atrás y llévalas a su caja',
     errorUntil: 0,
     timerStart: null,
     timerEnd: null,

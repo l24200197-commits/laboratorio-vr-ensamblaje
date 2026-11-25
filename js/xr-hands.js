@@ -4,8 +4,8 @@
 // La pinza hacia la palma (menú del sistema) la consume el sistema y NO llega a la página.
 import * as THREE from 'three';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
-import { LAB } from './config.js?v=20261125b';
-import { pickHit } from './lab.js?v=20261125b';
+import { LAB } from './config.js?v=20261125c';
+import { pickHit } from './lab.js?v=20261125c';
 
 export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onButton, world = {} }) {
   const factory = new XRHandModelFactory();

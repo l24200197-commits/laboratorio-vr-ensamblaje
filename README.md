@@ -2,7 +2,7 @@
 
 Práctica **3.1 Introducción a las aplicaciones VR** · Meta Quest 3 · Three.js r160 + WebXR · Bootstrap 5.3
 
-Aplicación web **100 % estática** de realidad virtual inmersiva (`immersive-vr`). El usuario toma cinco piezas geométricas con **seguimiento de manos** (rayo + pinza índice-pulgar), las arrastra y las suelta sobre su **caja**: caen por **gravedad** y se validan al quedar quietas. Incluye validación, sonido, contador 0/5, cronómetro, reinicio y salida de VR desde un panel 3D.
+Aplicación web **100 % estática** de realidad virtual inmersiva (`immersive-vr`). El usuario toma **25 piezas geométricas (5 de cada forma)** de la mesa de atrás con **seguimiento de manos** (rayo + pinza índice-pulgar), las arrastra y las suelta sobre su **caja**: caen por **gravedad** y se validan al quedar quietas. Si una pieza cae fuera, **se queda donde cayó** (piso, mesa, pupitre) y hay que recogerla. Al completar 25/25 aparece **«¡ERES UN DEMONIO!»** con confeti y chispas. Incluye validación, sonido, contador 0/25, cronómetro, reinicio y salida de VR desde un panel 3D.
 
 - Repositorio: `https://github.com/<usuario>/<repositorio>`
 - GitHub Pages: `https://<usuario>.github.io/<repositorio>/`
@@ -28,7 +28,7 @@ Aplicación web **100 % estática** de realidad virtual inmersiva (`immersive-vr
 ### Caché del navegador (versión)
 Todas las rutas locales llevan `?v=AAAAMMDDx` (en `index.html`, cada `import` de `js/` y la URL del salón) para que el Meta Quest Browser descargue los archivos nuevos tras cada publicación. **Al publicar cambios, sube la versión en todos los archivos a la vez**, por ejemplo:
 ```sh
-grep -rl 'v=20261125b' index.html js | xargs sed -i '' 's/v=20261125b/v=20261126a/g'
+grep -rl 'v=20261125c' index.html js | xargs sed -i '' 's/v=20261125c/v=20261126a/g'
 ```
 
 ## Controles (dentro de VR)
@@ -78,7 +78,10 @@ Flujo: **portada → Entrar a VR → apuntar → pinza (seleccionada) → mover 
 - Al soltar la pinza la pieza **cae por gravedad** (`LAB.physics`: 9.81 m/s², rebote 0.25, fricción). Si la mano se movía, hereda el 60 % de su velocidad (tope 2 m/s). Con el ratón se levanta sobre el borde de las cajas al tomarla y cae al soltarla.
 - La validación ocurre **cuando la pieza queda quieta** (≥ 0.35 s por debajo de 5 cm/s; seguro de 6 s). «Dentro de una caja» = el centro de la pieza está dentro del hueco de la caja y por debajo de su borde.
 - **Acierto**: queda dentro de SU caja. Se queda donde cayó, caja y pieza en verde, sonido, bloqueo, +1.
-- **Caja equivocada** o **fuera de las cajas** (mesa, piso, pupitre): rojo temporal (pieza y caja), sonido grave, mensaje; no suma; tras la señal la pieza vuelve a su lugar.
+- **Caja equivocada**: rojo temporal (pieza y caja), sonido grave, mensaje; no suma; la pieza se queda en esa caja y hay que sacarla.
+- **Fuera de las cajas** (mesa, piso, pupitre): la pieza se queda donde cayó y vuelve a estar disponible: hay que recogerla.
+- Cada caja recibe 5 piezas (4 abajo + 1 encima) y se pone más verde conforme se llena.
+- **25/25**: letrero «¡ERES UN DEMONIO!», confeti y chispas durante 8 s (`CELEBRATION` en config.js, `js/celebration.js`).
 - Una pieza `colocada`, `cayendo` o sujeta por otra mano no es seleccionable. Las piezas se pueden apilar/golpear entre sí.
 - Prioridad del rayo: botones > piezas; piso, mesa, cajas, salón y mobiliario nunca están en la lista de raycast.
 - Cronómetro: inicia al tomar la primera pieza; se detiene en 5/5.
@@ -93,6 +96,8 @@ Cada pieza es una caja de colisión vertical (radio `r`, semialtura `h`); los s�
 
 ## Profesor y puerta
 - **Escritorio del profesor** (`TEACHER` en config.js): en la esquina del frente junto a las ventanas, sobre una tarima baja, con tablero de madera, estructura negra, laptop y papeles. El profesor está sentado en su silla mirando a los alumnos y voltea la cabeza hacia el usuario. La tarima y el escritorio son sólidos para la física.
+- **Profesor**: chamarra café abierta sobre camisa clara, lentes de armazón negro y cabello peinado hacia atrás.
+- **Visitantes** (`VISITORS`, `js/visitors.js`): al abrir la puerta aparecen tres mujeres en el pasillo saludando con la mano y un globo «¡Hola!»; desaparecen al cerrarla.
 - **Puerta** (`DOOR` en config.js): se abre o cierra **tocándola con la punta del dedo índice** (o con el control), **apuntándola con el rayo y pellizcando**, o con **clic** en la vista de escritorio. Gira 95° hacia el interior del salón; un toque solo alterna al entrar en contacto (con 0.8 s de espera) para que no se abra y cierre de inmediato.
 
 ## Salón de clases (GLB)
