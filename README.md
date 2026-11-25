@@ -25,6 +25,12 @@ Aplicación web **100 % estática** de realidad virtual inmersiva (`immersive-vr
 4. Todas las rutas internas son **relativas** (`js/main.js`, `css/styles.css`, `assets/favicon.svg`), por eso funcionan bajo el subdirectorio `/<repositorio>/`. El archivo `.nojekyll` evita el procesamiento Jekyll.
 5. Depuración: DevTools → *Console* (errores de módulos) y *Network* (404 = ruta incorrecta; fallos en `cdn.jsdelivr.net` = CDN/versión).
 
+### Caché del navegador (versión)
+Todas las rutas locales llevan `?v=AAAAMMDDx` (en `index.html`, cada `import` de `js/` y la URL del salón) para que el Meta Quest Browser descargue los archivos nuevos tras cada publicación. **Al publicar cambios, sube la versión en todos los archivos a la vez**, por ejemplo:
+```sh
+grep -rl 'v=20261125b' index.html js | xargs sed -i '' 's/v=20261125b/v=20261126a/g'
+```
+
 ## Controles (dentro de VR)
 | Acción | Gesto |
 |---|---|

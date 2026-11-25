@@ -3,9 +3,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { LAB, BOX, CLASSROOM, PIECES, PIECE_ROW_Z, TARGETS, TARGET_ROW_Z } from './config.js';
-import { makeLabel } from './text.js';
-import { deskGeometries } from './classroom.js';
+import { LAB, BOX, CLASSROOM, PIECES, PIECE_ROW_Z, TARGETS, TARGET_ROW_Z } from './config.js?v=20261125b';
+import { makeLabel } from './text.js?v=20261125b';
+import { deskGeometries } from './classroom.js?v=20261125b';
 
 const SHAPES = {
   // half = semialtura; r = radio horizontal que usa la física (caja de colisión vertical).

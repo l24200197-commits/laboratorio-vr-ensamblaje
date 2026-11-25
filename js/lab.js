@@ -6,10 +6,10 @@
 //                                                                              └→ error → disponible
 // Al soltarla actúa la gravedad (js/physics.js). Cuando queda quieta se evalúa en qué caja quedó.
 import * as THREE from 'three';
-import { LAB } from './config.js';
-import { validateDeposit } from './rules.js';
-import { createBody } from './physics.js';
-import { STATUS, PHASE, formatTime } from './state.js';
+import { LAB } from './config.js?v=20261125b';
+import { validateDeposit } from './rules.js?v=20261125b';
+import { createBody } from './physics.js?v=20261125b';
+import { STATUS, PHASE, formatTime } from './state.js?v=20261125b';
 
 const C = { none: 0x000000, hover: 0xffffff, error: 0xff1a1a, ok: 0x22c55e };
 

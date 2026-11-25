@@ -1,19 +1,19 @@
 // Punto de entrada: inicializa renderer, escena, estado, entradas y sesión WebXR.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PIECES, SALON, CLASSROOM, LAB, TEACHER, DOOR } from './config.js';
-import { createStore } from './state.js';
-import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js';
-import { createHud } from './hud.js';
-import { createLabController } from './lab.js';
-import { createPhysics } from './physics.js';
-import { buildClassroom } from './classroom.js';
-import { buildTeacherArea } from './teacher.js';
-import { setupDoor } from './door.js';
-import { createXRHands } from './xr-hands.js';
-import { createDesktopPointer } from './desktop-pointer.js';
-import { createPageUI, detectXR } from './page-ui.js';
-import { sounds, unlockAudio } from './audio.js';
+import { PIECES, SALON, CLASSROOM, LAB, TEACHER, DOOR } from './config.js?v=20261125b';
+import { createStore } from './state.js?v=20261125b';
+import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js?v=20261125b';
+import { createHud } from './hud.js?v=20261125b';
+import { createLabController } from './lab.js?v=20261125b';
+import { createPhysics } from './physics.js?v=20261125b';
+import { buildClassroom } from './classroom.js?v=20261125b';
+import { buildTeacherArea } from './teacher.js?v=20261125b';
+import { setupDoor } from './door.js?v=20261125b';
+import { createXRHands } from './xr-hands.js?v=20261125b';
+import { createDesktopPointer } from './desktop-pointer.js?v=20261125b';
+import { createPageUI, detectXR } from './page-ui.js?v=20261125b';
+import { sounds, unlockAudio } from './audio.js?v=20261125b';
 
 const ui = createPageUI();
 

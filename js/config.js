@@ -59,7 +59,7 @@ export const TARGET_ROW_Z = -0.78; // centro de las cajas, al fondo de la mesa
 // Resultado: interior del salón en el mundo x ∈ [-3.37, 3.73], z ∈ [-2.99, 5.19]; sin muebles ni muros
 // dentro del área de trabajo (la mesa ocupa x ±0.75, z -0.95…-0.25). Los pupitres (CLASSROOM) dejan libre |x| < 1.0.
 export const SALON = {
-  url: 'assets/models/salon.glb',
+  url: 'assets/models/salon.glb?v=20261125b',
   position: [3.93, 0, -3.215],
   rotationYDeg: 180,
   // El modelo no trae techo: se cierra con un plano a la altura de los muros para no ver el vacío.

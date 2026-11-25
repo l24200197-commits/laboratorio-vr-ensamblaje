@@ -2,8 +2,8 @@
 // Solo primitivas de Three.js (sin descargas). El profesor respira y voltea la cabeza hacia el usuario.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CLASSROOM, TEACHER } from './config.js';
-import { deskGeometries, chairGeometries } from './classroom.js';
+import { CLASSROOM, TEACHER } from './config.js?v=20261125b';
+import { deskGeometries, chairGeometries } from './classroom.js?v=20261125b';
 
 const mat = (color, roughness = 0.6, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
