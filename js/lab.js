@@ -1,15 +1,25 @@
 // Controlador del laboratorio: máquina de estados de piezas y reto.
 // Las entradas (manos XR o ratón) SOLO llaman grab / drop / releaseToStart / setHover;
 // toda decisión de negocio ocurre aquí.
+//
+// Flujo de una pieza: disponible → seleccionada → en movimiento → (suelta) cayendo → colocada
+//                                                                              └→ error → disponible
+// Al soltarla actúa la gravedad (js/physics.js). Cuando queda quieta se evalúa en qué caja quedó.
 import * as THREE from 'three';
 import { LAB } from './config.js';
-import { validateDrop } from './rules.js';
+import { validateDeposit } from './rules.js';
+import { createBody } from './physics.js';
 import { STATUS, PHASE, formatTime } from './state.js';
 
 const C = { none: 0x000000, hover: 0xffffff, error: 0xff1a1a, ok: 0x22c55e };
 
-export function createLabController({ store, pieces, targets, hud, sounds }) {
-  const targetList = [...targets.values()];
+export function createLabController({ store, pieces, targets, hud, sounds, physics }) {
+  const boxVolumes = [...targets.values()].map((t) => t.volume);
+  const P = LAB.physics;
+  const bodies = new Map();      // id -> cuerpo físico de las piezas que están cayendo
+  const rejected = new Map();    // id -> instante en que la pieza rechazada vuelve a su lugar
+  const IDENTITY_Q = new THREE.Quaternion();
+  let lastTick = null;
   const hovers = new Map();      // fuente -> id de pieza apuntada
   const cancellers = new Set();  // funciones de las entradas para soltar sin validar
   const grabPositions = new Map();
@@ -22,7 +32,7 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
     store.setPiece(id, STATUS.SELECTED, holder);
     grabPositions.set(id, pieces.get(id).mesh.getWorldPosition(new THREE.Vector3()));
     store.startTimer(now);
-    if (store.get().phase === PHASE.PENDING) store.setPhase(PHASE.ACTIVE, 'Lleva la pieza a su destino');
+    if (store.get().phase === PHASE.PENDING) store.setPhase(PHASE.ACTIVE, 'Lleva la pieza sobre su caja y suéltala');
     return true;
   }
 
@@ -31,27 +41,69 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
     return s === STATUS.SELECTED || s === STATUS.MOVING;
   }
 
-  function drop(id, now = performance.now()) {
+  /**
+   * Suelta la pieza: la entrada ya no la sostiene y empieza a caer. NO se valida aquí: la validación
+   * ocurre cuando la pieza queda quieta (settle). `velocity` [x,y,z] m/s es la de la mano al soltar.
+   */
+  function drop(id, now = performance.now(), velocity = [0, 0, 0]) {
     if (!isHeld(id)) return;
     const piece = pieces.get(id);
     piece.mesh.position.clamp(minB, maxB); // limita el área de trabajo
-    const result = validateDrop(piece.mesh.position, piece.config.target, targetList, LAB.snapTolerance);
+    const v = new THREE.Vector3(...velocity).multiplyScalar(P.throwScale);
+    if (v.length() > P.maxThrowSpeed) v.setLength(P.maxThrowSpeed);
+    const p = piece.mesh.position;
+    bodies.set(id, createBody({ position: [p.x, p.y, p.z], velocity: [v.x, v.y, v.z], r: piece.r, h: piece.half }));
+    store.setPiece(id, STATUS.FALLING, null);
+  }
+
+  /** Sólidos dinámicos: las demás piezas que no están en una mano (se pueden apilar/golpear). */
+  const dynamic = [];
+  function dynamicSolids(exceptId) {
+    dynamic.length = 0;
+    for (const q of pieces.values()) {
+      if (q.config.id === exceptId || isHeld(q.config.id)) continue;
+      const { x, y, z } = q.mesh.position;
+      dynamic.push({ min: [x - q.r, y - q.half, z - q.r], max: [x + q.r, y + q.half, z + q.r], nudge: 'xz' });
+    }
+    return dynamic;
+  }
+
+  function stepPhysics(dt, now) {
+    if (dt > 0.05) dt = 0.05; // pestañeo / pausa: no simular saltos enormes
+    for (const [id, body] of bodies) {
+      const piece = pieces.get(id);
+      physics.advance(body, dt, dynamicSolids(id));
+      piece.mesh.position.set(body.pos[0], body.pos[1], body.pos[2]);
+      piece.mesh.quaternion.slerp(IDENTITY_Q, Math.min(1, dt * 14)); // se endereza al caer
+      if (body.restTime >= P.restSeconds || body.age >= P.maxFallSeconds) settle(id, now);
+    }
+    for (const [id, until] of rejected) {
+      if (now < until) continue;
+      rejected.delete(id);
+      resetTransform(pieces.get(id));
+      store.setPiece(id, STATUS.AVAILABLE, null);
+    }
+  }
+
+  /** La pieza quedó quieta: se evalúa en qué caja está. */
+  function settle(id, now) {
+    bodies.delete(id);
+    const piece = pieces.get(id);
+    piece.mesh.quaternion.copy(IDENTITY_Q);
+    const result = validateDeposit(piece.mesh.position, piece.config.target, boxVolumes);
     if (result.ok) place(piece, now);
     else reject(piece, result, now);
   }
 
   function place(piece, now) {
-    const target = targets.get(piece.config.target);
-    piece.mesh.position.copy(target.position); // snap-to-target
-    piece.mesh.quaternion.copy(target.quaternion);
-    store.setPiece(piece.config.id, STATUS.PLACED, null);
+    store.setPiece(piece.config.id, STATUS.PLACED, null); // se queda donde cayó, dentro de su caja
     const n = store.placedCount();
     if (n === store.total) {
       store.stopTimer(now);
       store.setPhase(PHASE.DONE, `¡Completado! Tiempo final ${formatTime(store.elapsedMs(now))}`);
       sounds.finish();
     } else {
-      store.setPhase(PHASE.ACTIVE, `¡Correcto! ${piece.config.label} ensamblado (${n}/${store.total})`);
+      store.setPhase(PHASE.ACTIVE, `¡Correcto! ${piece.config.label} depositado en su caja (${n}/${store.total})`);
       sounds.success();
     }
   }
@@ -60,15 +112,15 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
     const until = now + LAB.feedbackMs;
     piece.flashUntil = until;
     let msg;
-    if (result.reason === 'destino') {
-      const t = targets.get(result.nearestId);
+    if (result.reason === 'caja') {
+      const t = targets.get(result.boxId);
       t.flashUntil = until;
-      msg = `Error: ${piece.config.label} no va en el destino ${t.label}`;
+      msg = `Error: ${piece.config.label} no va en la caja ${t.label}`;
     } else {
-      msg = `Error: muy lejos del destino (${(result.distance * 100).toFixed(0)} cm > ${(LAB.snapTolerance * 100).toFixed(0)} cm)`;
+      msg = `Error: ${piece.config.label} quedó fuera de las cajas`;
     }
-    resetTransform(piece);
-    store.setPiece(piece.config.id, STATUS.AVAILABLE, null);
+    // La pieza se queda visible donde cayó mientras dura la señal roja y luego vuelve a su lugar.
+    rejected.set(piece.config.id, until);
     store.setPhase(PHASE.ERROR, msg, until);
     sounds.error();
   }
@@ -88,6 +140,8 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
 
   function reset() {
     for (const cancel of cancellers) cancel(); // suelta selecciones activas primero
+    bodies.clear();
+    rejected.clear();
     for (const p of pieces.values()) { resetTransform(p); p.flashUntil = 0; }
     for (const t of targets.values()) t.flashUntil = 0;
     hovers.clear();
@@ -123,12 +177,15 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
     }
     for (const t of targets.values()) {
       const placed = store.piece(t.pieceId).status === STATUS.PLACED;
-      t.pad.material.color.setHex(placed ? C.ok : t.flashUntil > now ? C.error : t.baseColor);
-      t.ghost.visible = !placed;
+      const flash = t.flashUntil > now;
+      t.material.emissive.setHex(flash ? C.error : placed ? C.ok : C.none);
+      t.material.emissiveIntensity = flash ? 0.8 : placed ? 0.35 : 0;
     }
   }
 
   function tick(now) {
+    stepPhysics(lastTick === null ? 0 : (now - lastTick) / 1000, now);
+    lastTick = now;
     store.tick(now);
     updateMovingStatus();
     applyVisuals(now);
@@ -161,6 +218,7 @@ export function createLabController({ store, pieces, targets, hud, sounds }) {
 
   return {
     grab, drop, releaseToStart, reset, setHover, tick, selectables,
+    isFalling: (id) => bodies.has(id),
     registerCanceller: (fn) => cancellers.add(fn),
     pieceMesh: (id) => pieces.get(id)?.mesh,
   };

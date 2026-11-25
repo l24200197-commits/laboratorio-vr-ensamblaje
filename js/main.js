@@ -1,11 +1,13 @@
 // Punto de entrada: inicializa renderer, escena, estado, entradas y sesión WebXR.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PIECES } from './config.js';
+import { PIECES, SALON, CLASSROOM, LAB } from './config.js';
 import { createStore } from './state.js';
-import { buildEnvironment, buildPieces, buildTargets } from './scene.js';
+import { buildGenericEnvironment, buildTable, loadSalon, buildPieces, buildTargets } from './scene.js';
 import { createHud } from './hud.js';
 import { createLabController } from './lab.js';
+import { createPhysics } from './physics.js';
+import { buildClassroom } from './classroom.js';
 import { createXRHands } from './xr-hands.js';
 import { createDesktopPointer } from './desktop-pointer.js';
 import { createPageUI, detectXR } from './page-ui.js';
@@ -38,9 +40,11 @@ async function init() {
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 0.9, -0.7);
   controls.enableDamping = true;
+  controls.maxDistance = SALON.maxOrbitDistance; // la vista de depuración no sale del salón
   controls.update();
 
-  buildEnvironment(scene);
+  const table = buildTable(); // la mesa es del laboratorio: va con cualquier entorno
+  scene.add(table);
   const labGroup = new THREE.Group(); // en el origen: coordenadas locales = mundo
   scene.add(labGroup);
 
@@ -48,7 +52,13 @@ async function init() {
   const pieces = buildPieces(labGroup);
   const targets = buildTargets(labGroup);
   const hud = createHud(labGroup);
-  const lab = createLabController({ store, pieces, targets, hud, sounds });
+  // Gravedad: sólidos fijos = mesa + cajas (el salón y su mobiliario se suman al cargar).
+  const physics = createPhysics({
+    ...LAB.physics,
+    solids: [...table.userData.solids, ...[...targets.values()].flatMap((t) => t.solids)],
+    bounds: { min: [-3.5, -3.5], max: [3.5, 3.5] }, // entorno de respaldo; con el salón se ajusta a sus muros
+  });
+  const lab = createLabController({ store, pieces, targets, hud, sounds, physics });
 
   const onButton = (action) => {
     if (action === 'reset') lab.reset();
@@ -124,7 +134,28 @@ async function init() {
     renderer.render(scene, camera);
   });
 
+  // El spinner sigue visible hasta que el salón cargue (o falle y se use el respaldo).
+  let classroom = null;
+  try {
+    const { bounds } = await loadSalon(scene, SALON);
+    const m = CLASSROOM.roomMargin; // muros invisibles: las piezas no salen del salón
+    physics.setBounds({ min: [bounds.min.x + m, bounds.min.z + m], max: [bounds.max.x - m, bounds.max.z - m] });
+    if (CLASSROOM.enabled) {
+      classroom = buildClassroom(CLASSROOM);
+      scene.add(classroom.group);
+      physics.add(...classroom.solids);
+    }
+  } catch (err) {
+    console.warn('Salón no disponible, se usa el entorno de respaldo:', err);
+    buildGenericEnvironment(scene);
+    ui.showError(`No se pudo cargar el salón (${err.message}). Se muestra el entorno genérico de respaldo.`);
+  }
   ui.setLoaded();
+
+  // Herramientas de inspección para pruebas: solo con ?debug en la URL.
+  if (new URLSearchParams(location.search).has('debug')) {
+    window.__lab = { THREE, scene, camera, renderer, controls, store, pieces, targets, lab, hud, physics, classroom };
+  }
 
   const xr = await detectXR();
   ui.setStatus(xr.level, xr.text);

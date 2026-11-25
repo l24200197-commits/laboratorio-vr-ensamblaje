@@ -11,6 +11,7 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
   const factory = new XRHandModelFactory();
   const raycaster = new THREE.Raycaster();
   const rotation = new THREE.Matrix4();
+  const trailPoint = new THREE.Vector3();
 
   const sources = [0, 1].map((index) => {
     const controller = renderer.xr.getController(index); // espacio del rayo de apuntado
@@ -20,7 +21,7 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     const ray = makeRay();
     controller.add(ray);
 
-    const s = { key: `xr-${index}`, controller, hand, ray, handedness: null, isHand: false, connected: false, heldId: null };
+    const s = { key: `xr-${index}`, controller, hand, ray, handedness: null, isHand: false, connected: false, heldId: null, trail: [] };
 
     controller.addEventListener('connected', (e) => {
       s.connected = true;
@@ -81,6 +82,7 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     if (data.kind === 'piece' && lab.grab(data.id, s.key)) {
       s.controller.attach(hit.object); // conserva el offset de agarre
       s.heldId = data.id;
+      s.trail.length = 0;
       lab.setHover(s.key, null);
     }
   }
@@ -90,7 +92,8 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     const id = s.heldId;
     s.heldId = null;
     labGroup.attach(lab.pieceMesh(id)); // vuelve al mundo conservando la pose
-    lab.drop(id); // la validación ocurre SOLO al soltar
+    // La pieza hereda (en parte) la velocidad de la mano y cae por gravedad; se evalúa al quedar quieta.
+    lab.drop(id, performance.now(), releaseVelocity(s));
   }
 
   function cancelHold(s) {
@@ -101,12 +104,29 @@ export function createXRHands({ renderer, scene, labGroup, lab, hud, store, onBu
     lab.releaseToStart(id);
   }
 
+  /** Velocidad (m/s, mundo) de la pieza sujeta en los últimos ~100 ms: 0 si la mano estaba quieta. */
+  function releaseVelocity(s) {
+    const now = performance.now();
+    const recent = s.trail.filter((p) => now - p.t <= 100);
+    if (recent.length < 2) return [0, 0, 0];
+    const a = recent[0], b = recent[recent.length - 1];
+    const dt = (b.t - a.t) / 1000;
+    if (dt < 0.02) return [0, 0, 0];
+    return [(b.x - a.x) / dt, (b.y - a.y) / dt, (b.z - a.z) / dt];
+  }
+
   /** Se llama cada frame mientras la sesión XR está activa. */
   function update() {
     for (const s of sources) {
       s.ray.visible = s.connected;
       if (!s.connected) continue;
-      if (s.heldId) { s.ray.scale.z = 0.15; continue; }
+      if (s.heldId) {
+        s.ray.scale.z = 0.15;
+        const p = lab.pieceMesh(s.heldId).getWorldPosition(trailPoint);
+        s.trail.push({ t: performance.now(), x: p.x, y: p.y, z: p.z });
+        if (s.trail.length > 12) s.trail.shift();
+        continue;
+      }
       const hit = intersect(s);
       s.ray.scale.z = hit ? hit.distance : LAB.rayLength;
       const kind = hit?.object.userData.kind;

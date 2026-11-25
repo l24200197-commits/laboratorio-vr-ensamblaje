@@ -1,27 +1,26 @@
 // Reglas de negocio PURAS (sin Three.js de escena ni DOM): fáciles de probar y explicar.
 //
-// La distancia medida es la distancia euclidiana 3D (m) entre el centro de la pieza al soltarla
-// y el punto de referencia (centro) de cada destino.
+// La pieza se SUELTA y cae por gravedad; cuando queda quieta se evalúa en qué caja quedó.
+// "Dentro de una caja" = el centro de la pieza está dentro del hueco de la caja (en planta) y por
+// debajo de su borde. No hay tolerancia de distancia: o está dentro, o no.
 
 /**
- * @param {{distanceTo: Function}} piecePosition  posición de la pieza (THREE.Vector3)
- * @param {string} expectedTargetId              destino asignado a la pieza
- * @param {Array<{id:string, position:any}>} targets
- * @param {number} tolerance                     metros
- * @returns {{ok:boolean, reason:'ok'|'distancia'|'destino', nearestId:string|null, distance:number}}
+ * @typedef {{id:string, cx:number, cz:number, innerHalf:number, floorY:number, rimY:number}} BoxVolume
+ *   cx/cz: centro de la caja; innerHalf: mitad del hueco interior; floorY/rimY: alturas del fondo y del borde.
+ *
+ * @param {{x:number,y:number,z:number}} pos  centro de la pieza en reposo
+ * @param {string} expectedBoxId             caja asignada a la pieza
+ * @param {BoxVolume[]} boxes
+ * @param {number} [rimMargin]               holgura sobre el borde (una pieza apilada sobre otra sigue "dentro")
+ * @returns {{ok:boolean, reason:'ok'|'caja'|'fuera', boxId:string|null}}
  */
-export function validateDrop(piecePosition, expectedTargetId, targets, tolerance) {
-  if (!(tolerance > 0)) throw new RangeError('La tolerancia debe ser > 0');
-  if (!Array.isArray(targets) || targets.length === 0) throw new TypeError('No hay destinos');
-
-  let nearest = null;
-  let best = Infinity;
-  for (const t of targets) {
-    const d = piecePosition.distanceTo(t.position);
-    if (d < best) { best = d; nearest = t; }
-  }
-
-  if (best > tolerance) return { ok: false, reason: 'distancia', nearestId: nearest.id, distance: best };
-  if (nearest.id !== expectedTargetId) return { ok: false, reason: 'destino', nearestId: nearest.id, distance: best };
-  return { ok: true, reason: 'ok', nearestId: nearest.id, distance: best };
+export function validateDeposit(pos, expectedBoxId, boxes, rimMargin = 0.06) {
+  if (!Array.isArray(boxes) || boxes.length === 0) throw new TypeError('No hay cajas');
+  const inside = boxes.find((b) =>
+    Math.abs(pos.x - b.cx) <= b.innerHalf &&
+    Math.abs(pos.z - b.cz) <= b.innerHalf &&
+    pos.y >= b.floorY && pos.y <= b.rimY + rimMargin);
+  if (!inside) return { ok: false, reason: 'fuera', boxId: null };
+  if (inside.id !== expectedBoxId) return { ok: false, reason: 'caja', boxId: inside.id };
+  return { ok: true, reason: 'ok', boxId: inside.id };
 }

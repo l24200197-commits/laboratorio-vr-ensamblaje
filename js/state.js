@@ -5,6 +5,7 @@ export const STATUS = Object.freeze({
   AVAILABLE: 'disponible',
   SELECTED: 'seleccionada',
   MOVING: 'en movimiento',
+  FALLING: 'cayendo', // soltada: cae por gravedad hasta quedar quieta y se evalúa
   PLACED: 'colocada',
 });
 

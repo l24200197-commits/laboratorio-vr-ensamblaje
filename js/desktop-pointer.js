@@ -2,6 +2,10 @@
 // horizontal. NO sustituye la prueba con manos en Meta Quest 3.
 import * as THREE from 'three';
 import { pickHit } from './lab.js';
+import { LAB, BOX } from './config.js';
+
+// Altura a la que se lleva la pieza con el ratón: por encima del borde de las cajas.
+const CARRY_Y = LAB.tableTopY + BOX.height + 0.12;
 
 export function createDesktopPointer({ renderer, camera, controls, labGroup, lab, hud, onButton }) {
   const el = renderer.domElement;
@@ -27,9 +31,11 @@ export function createDesktopPointer({ renderer, camera, controls, labGroup, lab
     if (data.kind === 'button') { onButton(data.action); return; }
     if (data.kind === 'piece' && lab.grab(data.id, 'mouse')) {
       const mesh = hit.object;
-      plane.constant = -mesh.position.y;
-      raycaster.ray.intersectPlane(plane, point);
-      offset.copy(mesh.position).sub(point);
+      // Al tomarla con el ratón la pieza se levanta a CARRY_Y y queda justo bajo el cursor (a esa altura),
+      // así pasa por encima de las cajas y lo que se ve en pantalla coincide con donde cae al soltar.
+      plane.constant = -Math.max(mesh.position.y, CARRY_Y);
+      if (raycaster.ray.intersectPlane(plane, point)) { mesh.position.copy(point); offset.set(0, 0, 0); }
+      else { offset.set(0, 0, 0); }
       drag = { id: data.id, mesh };
       controls.enabled = false;
       el.setPointerCapture(evt.pointerId);

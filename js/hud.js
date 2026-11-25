@@ -62,7 +62,7 @@ export function createHud(parent) {
     ctx.fillText('Laboratorio de ensamblaje 3D', 40, 30);
     ctx.font = '28px system-ui, sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText('Apunta · pellizca (índice + pulgar) · suelta en su destino', 40, 92);
+    ctx.fillText('Apunta · pellizca (índice + pulgar) · suelta sobre su caja', 40, 92);
 
     ctx.font = 'bold 72px system-ui, sans-serif';
     ctx.fillStyle = '#ffffff';
